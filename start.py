@@ -4,6 +4,23 @@ import subprocess
 import csv
 
 
+#patterns
+seq1 = "CCCTAACCCTAA"
+seq2 = "CCTAACCCTAAC"
+seq3 = "CTAACCCTAACC"
+seq4 = "TAACCCTAACCC"
+seq5 = "AACCCTAACCCT"
+seq6 = "ACCCTAACCCTA"
+
+seq7 = "TTAGGGTTAGGG"
+seq8 = "TAGGGTTAGGGT"
+seq9 = "AGGGTTAGGGTT"
+seq10 = "GGGTTAGGGTTA"
+seq11 = "GGTTAGGGTTAG"
+seq12 = "GTTAGGGTTAGG"
+
+
+
 def get_read_positions(read):
   """Get read positions while allowing for inserted and soft-clipped bases.
   Args:

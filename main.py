@@ -29,7 +29,7 @@ class Reads:
         if intrv_file_name is not None:
             self.set_intervals(intrv_file_name)
         else:
-            None
+            self.intervals=None
             
     def set_intervals(self,f_neme):
         
@@ -49,6 +49,13 @@ class Reads:
                     if rep==read[start:start+len(rep)]:
                             return True
         return False
+    
+    def seq_pattern_extractor(self):
+        seqs={}
+        for read in self.reads:
+            if self.pattern_matcher(read):
+                seqs[read]=self.reads[read]
+        return seqs
         
     def get_next(self,i):
         if i == 0:
@@ -152,11 +159,29 @@ class Reads:
     def chrom_repair_unibase(self, read_name, chrom, clip_start,clip_end):
         chrm=self.ref[chrom]
         cliped_seq=self.reads[read_name][s]
+    def no_marker_repair(self,pos,reads_stat,chrmm,check_ratio=0.2):
+        target_clip_len_key=pos+"_clip_len"
+        if pos == "start":
+            other_side_clip_key="start_clip_len"
+        elif pos == "end":
+            other_side_clip_key="end_clip_len"
+        
+        check_size=int(len(reads_stat)*check_ratio)
+        read=dict(sorted([(i,(reads_stat[i][target_clip_len_key],reads_stat[i][other_side_clip_key])) for i in reads_stat], key=lambda x: x[1][0])[-check_size:] )
+        align=dict(sorted([(i,reads_stat[i]["alignment_size"]) for i in reads_stat], key=lambda x: x[1])[-check_size:]) 
+        intersection=np.intersect1d(list(read.keys()),list(align.keys()))
+        check_data={key:reads_stat[key][target_clip_len_key] for key in intersection}
+        first_tail=reads_stat[max(check_data, key=check_data.get)]
+
+        
     def ref_repair(self, chrom,pos,out_name):
         data=self.get_top_reads(pos=pos, chrom=chrom)
         if len(data["marker"])==0 and len(data["no_marker"])>0:
             if len(data["no_marker"])==1:
                 cliped_seq=self.reads[read_name][:data[read_name]["start_clip_len"]["marker"]]
+                
+                
+                
         if len(data["marker"])==1:
             read_name= list(data.keys())[0]
             chrm=self.ref[chrom]
@@ -188,3 +213,5 @@ class Reads:
               #  print(str(aligned_read))
              #   if abs( aligned_read.reference_start- aligned_read.reference_end)+1/s  >0.50:
 r=Reads(bam_file_name="./Test4.bam",chromosome_file_name="./Ref_test4.fa",reads_file_name="./Read_test4.fa")
+rs=r.seq_pattern_extractor()
+r.save_seq(rs,"out.fasta")

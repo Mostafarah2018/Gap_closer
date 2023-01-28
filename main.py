@@ -3,6 +3,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pandas as pd
+import os
 
 #B i 1 solved
 
@@ -44,16 +45,18 @@ class Reads:
        # print(read)
         l=len(read)
         for start in range(len(read)-len(self.main_list[0])):
-            if start<50 or start>l-50:
+            if start<100 or start>l-100:
                 for rep in self.main_list:
                     if rep==read[start:start+len(rep)]:
-                            return True
-        return False
+                            return True#,start,rep
+        return False#,None,None
     
     def seq_pattern_extractor(self):
         seqs={}
         for read in self.reads:
-            if self.pattern_matcher(read):
+            a=self.pattern_matcher(read)
+            if a:
+                #print(b,c,read)
                 seqs[read]=self.reads[read]
         return seqs
         
@@ -83,7 +86,8 @@ class Reads:
     def checker(self,read ,pos,start,thr_seq=500, thr_tail=50):
         if pos.lower()=="end":
             length=len(self.ref[read.reference_name])-thr_tail
-            diff=read.reference_end-length
+            diff=length-read.reference_end
+           # print(length,diff,read.reference_end)
         else:
             ls=[i for i in read.positions if i>=start]
             if len(ls)>0:
@@ -159,20 +163,31 @@ class Reads:
     def chrom_repair_unibase(self, read_name, chrom, clip_start,clip_end):
         chrm=self.ref[chrom]
         cliped_seq=self.reads[read_name][s]
-    def no_marker_repair(self,pos,reads_stat,chrmm,check_ratio=0.2):
+    def no_marker_repair(self,pos,reads_stat,chrmm,cut=2000):#check_ratio=0.2):
+        # selesct maximum clipings with alignment size > X defult 2000
         target_clip_len_key=pos+"_clip_len"
         if pos == "start":
-            other_side_clip_key="start_clip_len"
-        elif pos == "end":
             other_side_clip_key="end_clip_len"
+        elif pos == "end":
+            other_side_clip_key="start_clip_len"
+        print(target_clip_len_key,other_side_clip_key)
         
-        check_size=int(len(reads_stat)*check_ratio)
-        read=dict(sorted([(i,(reads_stat[i][target_clip_len_key],reads_stat[i][other_side_clip_key])) for i in reads_stat], key=lambda x: x[1][0])[-check_size:] )
-        align=dict(sorted([(i,reads_stat[i]["alignment_size"]) for i in reads_stat], key=lambda x: x[1])[-check_size:]) 
-        intersection=np.intersect1d(list(read.keys()),list(align.keys()))
-        check_data={key:reads_stat[key][target_clip_len_key] for key in intersection}
-        first_tail=reads_stat[max(check_data, key=check_data.get)]
-
+       # check_size=int(len(reads_stat)*check_ratio)
+        read=dict(sorted([(i,(reads_stat[i][target_clip_len_key],reads_stat[i][other_side_clip_key])) for i in reads_stat if reads_stat[i]["alignment_size"]>cut], key=lambda x: x[1][0]))#[-check_size:] )
+        print(read)
+        #align=dict(sorted([(i,reads_stat[i]["alignment_size"]) for i in reads_stat], key=lambda x: x[1])[-check_size:]) 
+        #intersection=np.intersect1d(list(read.keys()),list(align.keys()))
+        check_data=read#{key:reads_stat[key][target_clip_len_key] for key in intersection}
+        res={}
+        if pos == "start":
+            for rec in read:
+                res[rec]=self.reads[rec][:read[rec][0]]
+        else:
+            for rec in read:
+                res[rec]=self.reads[rec][read[rec][0]:]
+        self.save_seq(res,"clip.fasta")
+        os.system("blastn -subject clip.fasta -query Read_test4.fa -outfmt 6 -out out.txt")
+        
         
     def ref_repair(self, chrom,pos,out_name):
         data=self.get_top_reads(pos=pos, chrom=chrom)
@@ -205,13 +220,11 @@ class Reads:
                 rs[marker]=clips
             return rs
             
-            
-        
                 
                             
                 
               #  print(str(aligned_read))
              #   if abs( aligned_read.reference_start- aligned_read.reference_end)+1/s  >0.50:
 r=Reads(bam_file_name="./Test4.bam",chromosome_file_name="./Ref_test4.fa",reads_file_name="./Read_test4.fa")
-rs=r.seq_pattern_extractor()
-r.save_seq(rs,"out.fasta")
+data=r.get_top_reads("end",'tig00018')
+r.no_marker_repair("end",data["no_marker"],"tig00018",cut=2000)

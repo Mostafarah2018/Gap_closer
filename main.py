@@ -3,6 +3,9 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import pandas as pd
+import numpy as np
+import argparse
+
 import os
 
 #B i 1 solved
@@ -163,8 +166,8 @@ class Reads:
     def chrom_repair_unibase(self, read_name, chrom, clip_start,clip_end):
         chrm=self.ref[chrom]
         cliped_seq=self.reads[read_name][s]
-    def no_marker_repair(self,pos,reads_stat,chrmm,cut=2000):#check_ratio=0.2):
-        # selesct maximum clipings with alignment size > X defult 2000
+    def no_marker_repair(self,pos,reads_stat,chrmm,cut=2000,check_ratio=0.2):
+        # selest maximum clipings with alignment size > X defult 2000
         target_clip_len_key=pos+"_clip_len"
         if pos == "start":
             other_side_clip_key="end_clip_len"
@@ -172,8 +175,10 @@ class Reads:
             other_side_clip_key="start_clip_len"
         print(target_clip_len_key,other_side_clip_key)
         
-       # check_size=int(len(reads_stat)*check_ratio)
-        read=dict(sorted([(i,(reads_stat[i][target_clip_len_key],reads_stat[i][other_side_clip_key])) for i in reads_stat if reads_stat[i]["alignment_size"]>cut], key=lambda x: x[1][0]))#[-check_size:] )
+        
+        read = sorted([(i,(reads_stat[i][target_clip_len_key],reads_stat[i][other_side_clip_key])) for i in reads_stat if reads_stat[i]["alignment_size"]>cut], key=lambda x: x[1][0])
+        check_size=int(len(reads_stat)*check_ratio)
+        read=dict(read[-check_size:] )
         print(read)
         #align=dict(sorted([(i,reads_stat[i]["alignment_size"]) for i in reads_stat], key=lambda x: x[1])[-check_size:]) 
         #intersection=np.intersect1d(list(read.keys()),list(align.keys()))
@@ -184,47 +189,101 @@ class Reads:
                 res[rec]=self.reads[rec][:read[rec][0]]
         else:
             for rec in read:
-                res[rec]=self.reads[rec][read[rec][0]:]
+                res[rec]=self.reads[rec][-read[rec][0]:]
+                print(rec,len(self.reads[rec][-read[rec][0]:]))
+                
         self.save_seq(res,"clip.fasta")
         os.system("blastn -subject clip.fasta -query Read_test4.fa -outfmt 6 -out out.txt")
+        seqs=''
+        df=pd.read_csv("./out.txt",sep="\t",header=None)
+        longest_clip_read=sorted([(reads_stat[i][target_clip_len_key],i) for i in reads_stat])[-1][1]
+        seqs+=res[longest_clip_read]
+        
+        df=df[df[1]==longest_clip_read].sort_values(3,ascending=False)
+        df["pattern"]=df[0].apply(lambda x: r.pattern_matcher(x))
+        df["len"]=df[0].apply(lambda x: len(r.reads[x]))
+        df["loc"]=df[0].apply(lambda x: self.pattern_loc_matcher(x))
+        if pos=="end":
+            df["rem"]=df["loc"]-df[7]
+        else:
+            df["rem"]=df[6]
+        f=df[df["pattern"]==True]
+        read_len=self.read_select(list(f.rem))
+        f=f[f["rem"]<=read_len]
+        final_rec=f[f["rem"]==max(f.rem)].iloc[0]
+        read_name=final_rec[0]
+        rem_len=final_rec["rem"]
+        if pos=="end":
+            seqs+=self.reads[read_name][-rem_len:]
+        else:
+            seqs=self.reads[read_name][:rem_len]+seqs
+        return seqs
+    def read_select(self,lenght):
+        data=sorted([(i,z) for z,i in enumerate(lenght)])
+        diff=1000
+        min_rec=0
+        clust=[]
+        cl=[data[0]]
+        for z,rec in enumerate(data):
+            if z==0:
+                continue
+            dif=rec[0]-data[z-1][0]
+            if dif>diff:
+                print(cl,len(cl),rec)
+                if len(cl)==0:
+                    print(rec)
+                    cl=[rec]
+                clust.append(cl)
+                cl=[]
+
+            cl.append(rec)
+        clust.append(cl)
+        read_len=np.median([j[0] for j in clust[np.argmax([len(i) for  i in clust])]])
+        return read_len
         
         
-    def ref_repair(self, chrom,pos,out_name):
+        
+    def pattern_loc_matcher(self,read_name):
+                read=r.reads[read_name]
+               # print(read)
+                l=len(read)
+                for start in range(len(read)-len(r.main_list[0])):
+                    if start<100 or start>l-100:
+                        for rep in r.main_list:
+                            if rep==read[start:start+len(rep)]:
+                                    return start#,start,rep
+                return -1#
+        
+        
+    def ref_repair(self, chrom,pos,out_name="updated_chomome.fasta"):
+        chrm=self.ref[chrom]
         data=self.get_top_reads(pos=pos, chrom=chrom)
         if len(data["marker"])==0 and len(data["no_marker"])>0:
-            if len(data["no_marker"])==1:
-                cliped_seq=self.reads[read_name][:data[read_name]["start_clip_len"]["marker"]]
-                
+            cliped_seq=self.no_marker_repair(pos,data["no_marker"],chrom)
                 
                 
         if len(data["marker"])==1:
-            read_name= list(data.keys())[0]
-            chrm=self.ref[chrom]
+            read_name= list(data["marker"].keys())[0]
+            
             cliped_seq=self.reads[read_name][:data[read_name]["start_clip_len"]["marker"]]
             
-            if pos == "start":
+        if pos == "start":
                 self.ref[chrom]=cliped_seq+chrm
-            elif pos == "end":
+        elif pos == "end":
                 self.ref[chrom]=chrm+cliped_seq
-            #self.save_seq(self.ref,out_name)
+        self.save_chrom("updated_chomome.fasta")
         
-        elif len(data)>1:
-            rs={}
-            for marker in data:
-                clips={}
-                for read in data[marker]:
-                    if pos == "start":
-                        clips[read]=self.reads[read]#[:data[read]["start_clip_len"]]
-                    elif pos == "end":
-                        clips[read]=self.reads[read]#[-data[read]["end_clip_len"]:]
-                rs[marker]=clips
-            return rs
-            
-                
-                            
-                
-              #  print(str(aligned_read))
-             #   if abs( aligned_read.reference_start- aligned_read.reference_end)+1/s  >0.50:
-r=Reads(bam_file_name="./Test4.bam",chromosome_file_name="./Ref_test4.fa",reads_file_name="./Read_test4.fa")
-data=r.get_top_reads("end",'tig00018')
-r.no_marker_repair("end",data["no_marker"],"tig00018",cut=2000)
+
+def main():
+    parser = argparse.ArgumentParser(description='A test program.')
+    parser.add_argument("-r", "--read", help="Read name", type=str,required=True)
+    parser.add_argument("-p", "--position", help="position of read", required=True)
+
+    args = parser.parse_args()
+    r=Reads(bam_file_name="./Test4.bam",chromosome_file_name="./Ref_test4.fa",reads_file_name="./Read_test4.fa")
+    r.ref_repair(args.read,args.position)
+
+if __name__ == "__main__":
+    main()
+
+

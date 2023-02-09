@@ -234,8 +234,8 @@ class Reads:
         self.log.write_txt("Longest read selected : "+str(longest_clip_read))
         seqs+=res[longest_clip_read]
         df=df[df[1]==longest_clip_read].sort_values(3,ascending=False)
-        df["pattern"]=df[0].apply(lambda x: r.pattern_matcher(x))
-        df["len"]=df[0].apply(lambda x: len(r.reads[x]))
+        df["pattern"]=df[0].apply(lambda x: self.pattern_matcher(x))
+        df["len"]=df[0].apply(lambda x: len(self.reads[x]))
         df["loc"]=df[0].apply(lambda x: self.pattern_loc_matcher(x))
         if pos=="end":
             df["rem"]=df["loc"]-df[7]
@@ -246,13 +246,15 @@ class Reads:
         
         self.log.write_txt("Alignemt dataFrame : ")
         self.log.write_df(f)
+        df["align_len"]=df[7]-df[6]
         
-        read_len=self.read_select(list(f.rem))
-        f=f[f["rem"]<=read_len]
-        self.log.write_txt("Marker read with median size %d selected".format(read_len))
-        self.log.write_df(df)
-        final_rec=f[f["rem"]==max(f.rem)].iloc[0]
+        #read_len=self.read_select(list(f.rem))
+      #  f=f[f["rem"]<=read_len]
+       # self.log.write_df(df)
+        final_rec=df[df["align_len"]==max(df["align_len"])].iloc[0]
         read_name=final_rec[0]
+        elf.log.write_txt("Marker read with id %s selected".format(read_name))
+
         rem_len=final_rec["rem"]
         self.log.write_txt("chromosome Updated")
         if pos=="end":
@@ -286,12 +288,12 @@ class Reads:
         
         
     def pattern_loc_matcher(self,read_name):
-                read=r.reads[read_name]
+                read=self.reads[read_name]
                # print(read)
                 l=len(read)
-                for start in range(len(read)-len(r.main_list[0])):
+                for start in range(len(read)-len(self.main_list[0])):
                     if start<100 or start>l-100:
-                        for rep in r.main_list:
+                        for rep in self.main_list:
                             if rep==read[start:start+len(rep)]:
                                     return start#,start,rep
                 return -1#

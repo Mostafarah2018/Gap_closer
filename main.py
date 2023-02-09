@@ -5,13 +5,43 @@ from Bio.SeqRecord import SeqRecord
 import pandas as pd
 import numpy as np
 import argparse
-
+import json
 import os
 
 #B i 1 solved
 
+class Log:
+    def __init__(self,path="./log.txt"):
+        self.file=open(path,"w")
+    def write_dic(self,dic):
+        self.file.write(json.dumps(dic))
+        self.file.write("\n")
+    def write_df(self,df):
+        dfAsString = df.to_string()
+        self.file.write(dfAsString)
+        self.file.write("\n")
+    def write_txt(self,txt):
+        self.file.write(str(txt))
+        self.file.write("\n")
+    def top_reads_logger(self,data):
+        print(len(data["marker"]))
+        print(len(data["no_marker"]))
+        if len(data["marker"])==0:
+            self.write_txt("* Non of reads has marker")
+        else:
+            self.write_txt("*  marker read stat : ")
+            self.write_df(pd.DataFrame(data["marker"]).T)
+        
+        if len(data["no_marker"])==0:
+            self.write_txt("* all of the reads has marker")
+        else:
+            self.write_txt("* no marker read stat : ")
+            self.write_df(pd.DataFrame(data["no_marker"]).T)
+#B i 1 solved
+
 class Reads:
-    def __init__(self, bam_file_name, chromosome_file_name,reads_file_name, intrv_file_name=None):
+    def __init__(self, bam_file_name, chromosome_file_name,reads_file_name, intrv_file_name=None,log_path="./log.txt"):
+        self.log=Log()
         self.ref={}
         with open(chromosome_file_name) as handle:
             for record in SeqIO.parse(handle, "fasta"):
@@ -154,6 +184,7 @@ class Reads:
                                               "read_size":s,
                                               "alignment_size":aligned_read.reference_end -aligned_read.reference_start+1}
 
+        self.log.top_reads_logger(clips)
         return clips
     def save_chrom(self, out="updated_chromosome.fasta"):
         self.save_seq(self.reads,out)
@@ -172,14 +203,14 @@ class Reads:
         if pos == "start":
             other_side_clip_key="end_clip_len"
         elif pos == "end":
-            other_side_clip_key="start_clip_len"
-        print(target_clip_len_key,other_side_clip_key)
-        
-        
+            other_side_clip_key="start_clip_len"        
+        self.log.write_txt("proccessing reads with no marker")
         read = sorted([(i,(reads_stat[i][target_clip_len_key],reads_stat[i][other_side_clip_key])) for i in reads_stat if reads_stat[i]["alignment_size"]>cut], key=lambda x: x[1][0])
         check_size=int(len(reads_stat)*check_ratio)
         read=dict(read[-check_size:] )
-        print(read)
+        
+        self.log.write_txt("Selected reads with %f percent max length : ".format(check_ratio))
+        self.log.write_dic(read)
         #align=dict(sorted([(i,reads_stat[i]["alignment_size"]) for i in reads_stat], key=lambda x: x[1])[-check_size:]) 
         #intersection=np.intersect1d(list(read.keys()),list(align.keys()))
         check_data=read#{key:reads_stat[key][target_clip_len_key] for key in intersection}
@@ -191,14 +222,17 @@ class Reads:
             for rec in read:
                 res[rec]=self.reads[rec][-read[rec][0]:]
                 print(rec,len(self.reads[rec][-read[rec][0]:]))
-                
+        self.log.write_txt("Aligning clipping regions of selected reads")
         self.save_seq(res,"clip.fasta")
         os.system("blastn -subject clip.fasta -query Read_test4.fa -outfmt 6 -out out.txt")
+        self.log.write_txt("Alignment done")
+
         seqs=''
         df=pd.read_csv("./out.txt",sep="\t",header=None)
-        longest_clip_read=sorted([(reads_stat[i][target_clip_len_key],i) for i in reads_stat])[-1][1]
-        seqs+=res[longest_clip_read]
         
+        longest_clip_read=sorted([(reads_stat[i][target_clip_len_key],i) for i in reads_stat])[-1][1]
+        self.log.write_txt("Longest read selected : "+str(longest_clip_read))
+        seqs+=res[longest_clip_read]
         df=df[df[1]==longest_clip_read].sort_values(3,ascending=False)
         df["pattern"]=df[0].apply(lambda x: r.pattern_matcher(x))
         df["len"]=df[0].apply(lambda x: len(r.reads[x]))
@@ -207,12 +241,20 @@ class Reads:
             df["rem"]=df["loc"]-df[7]
         else:
             df["rem"]=df[6]
+            
         f=df[df["pattern"]==True]
+        
+        self.log.write_txt("Alignemt dataFrame : ")
+        self.log.write_df(f)
+        
         read_len=self.read_select(list(f.rem))
         f=f[f["rem"]<=read_len]
+        self.log.write_txt("Marker read with median size %d selected".format(read_len))
+        self.log.write_df(df)
         final_rec=f[f["rem"]==max(f.rem)].iloc[0]
         read_name=final_rec[0]
         rem_len=final_rec["rem"]
+        self.log.write_txt("chromosome Updated")
         if pos=="end":
             seqs+=self.reads[read_name][-rem_len:]
         else:
@@ -253,17 +295,25 @@ class Reads:
                             if rep==read[start:start+len(rep)]:
                                     return start#,start,rep
                 return -1#
-        
+    
         
     def ref_repair(self, chrom,pos,out_name="updated_chomome.fasta"):
+        self.log.write_txt("* Extracting data : ")
         chrm=self.ref[chrom]
         data=self.get_top_reads(pos=pos, chrom=chrom)
+        
+        
+        
         if len(data["marker"])==0 and len(data["no_marker"])>0:
+            
+            self.log.write_txt("data has no marker reads pocessing reads with no marker")
             cliped_seq=self.no_marker_repair(pos,data["no_marker"],chrom)
                 
                 
         if len(data["marker"])==1:
+            
             read_name= list(data["marker"].keys())[0]
+            self.log.write_txt("data has reads with marker, adding read wtih "+str(read_name)+" id")
             
             cliped_seq=self.reads[read_name][:data[read_name]["start_clip_len"]["marker"]]
             
@@ -272,6 +322,7 @@ class Reads:
         elif pos == "end":
                 self.ref[chrom]=chrm+cliped_seq
         self.save_chrom("updated_chomome.fasta")
+        self.log.write_txt("chromosome updated!")
         
 
 def main():
@@ -282,6 +333,7 @@ def main():
     args = parser.parse_args()
     r=Reads(bam_file_name="./Test4.bam",chromosome_file_name="./Ref_test4.fa",reads_file_name="./Read_test4.fa")
     r.ref_repair(args.read,args.position)
+    r.log.file.close()
 
 if __name__ == "__main__":
     main()

@@ -253,7 +253,7 @@ class Reads:
        # self.log.write_df(df)
         final_rec=df[df["align_len"]==max(df["align_len"])].iloc[0]
         read_name=final_rec[0]
-        self.log.write_txt("Marker read with id %s selected".format(read_name))
+        self.log.write_txt("Marker read with id "+str(read_name)+" selected")
 
         rem_len=final_rec["rem"]
         self.log.write_txt("chromosome Updated")

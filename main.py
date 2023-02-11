@@ -38,7 +38,6 @@ class Log:
             self.write_txt("* no marker read stat : ")
             self.write_df(pd.DataFrame(data["no_marker"]).T)
 #B i 1 solved
-
 class Reads:
     def __init__(self, bam_file_name, chromosome_file_name,reads_file_name, intrv_file_name=None,log_path="./log.txt"):
         self.log=Log()
@@ -136,7 +135,7 @@ class Reads:
     def return_seq(self,name,start, end ):
         return self.read[name][start:end]
     
-    def  check_merge_start_Intervals(self,chrm,diff=500):
+    def  check_merge_start_Intervals(self,chrm,diff=500,):
         # Sort the array on the basis of start values of intervals.
         if self.intervals is None:
             return None
@@ -197,7 +196,7 @@ class Reads:
     def chrom_repair_unibase(self, read_name, chrom, clip_start,clip_end):
         chrm=self.ref[chrom]
         cliped_seq=self.reads[read_name][s]
-    def no_marker_repair(self,pos,reads_stat,chrmm,cut=2000,check_ratio=0.2):
+    def no_marker_repair(self,pos,reads_stat,chrmm,cut=2000,check_ratio=0.2,max_len=True):
         # selest maximum clipings with alignment size > X defult 2000
         target_clip_len_key=pos+"_clip_len"
         if pos == "start":
@@ -223,7 +222,12 @@ class Reads:
                 res[rec]=self.reads[rec][-read[rec][0]:]
                 print(rec,len(self.reads[rec][-read[rec][0]:]))
         self.log.write_txt("Aligning clipping regions of selected reads")
+        if max_len is True:
+            max_len_id=np.argmax([len(res[i]) for i in res])
+            key=list(res.keys())[max_len_id]
+            res={key:res[key]}
         self.save_seq(res,"clip.fasta")
+        
         os.system("blastn -subject clip.fasta -query Read_test4.fa -outfmt 6 -out out.txt")
         self.log.write_txt("Alignment done")
 
@@ -246,13 +250,14 @@ class Reads:
         
         self.log.write_txt("Alignemt dataFrame : ")
         self.log.write_df(f)
-        df["align_len"]=df[7]-df[6]
+        f["align_len"]=f[7]-f[6]
         
         #read_len=self.read_select(list(f.rem))
       #  f=f[f["rem"]<=read_len]
        # self.log.write_df(df)
-        final_rec=df[df["align_len"]==max(df["align_len"])].iloc[0]
+        final_rec=f[f["align_len"]==max(f["align_len"])].iloc[0]
         read_name=final_rec[0]
+        print("Marker read with id "+str(read_name)+" selected")
         self.log.write_txt("Marker read with id "+str(read_name)+" selected")
 
         rem_len=final_rec["rem"]
@@ -325,7 +330,7 @@ class Reads:
                 self.ref[chrom]=chrm+cliped_seq
         self.save_chrom("updated_chomome.fasta")
         self.log.write_txt("chromosome updated!")
-        
+                
 
 def main():
     parser = argparse.ArgumentParser(description='A test program.')

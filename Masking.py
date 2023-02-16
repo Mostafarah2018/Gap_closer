@@ -96,9 +96,15 @@ for fil in Comb_files:
 
 combs_uniq = []
 for J in combs_uniq_mask:
-
     with open(J, "r") as inp:
-        data = inp.read().replace("AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA", "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
+        pattern="AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA"
+        data=''
+        for line in inp:
+            match = re.search(pattern0, pattern1)
+            if match is not None:
+                line[:match.start()]+line[match.end():]
+            data+=line
+        #data = inp.read().replace("AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA", "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
 
     output = J[:-6]+"_Masked.fasta"
     with open(output, "w") as out:

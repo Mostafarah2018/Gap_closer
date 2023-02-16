@@ -102,7 +102,7 @@ for J in combs_uniq_mask:
         for line in inp:
             match = re.search(pattern0, pattern1)
             if match is not None:
-                line[:match.start()]+line[match.end():]
+                line=line[match.end():]
             data+=line
         #data = inp.read().replace("AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA", "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
 

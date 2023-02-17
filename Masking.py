@@ -34,7 +34,7 @@ for file in files:
 
     name = file[:-6]
     fastq_parser = SeqIO.parse(file, "fastq")
-    wanted = [rec for rec in fastq_parser if seq1 in rec]
+    wanted = [rec for rec in fastq_parser if rec.seq.find(seq1)!=-1]
     SeqIO.write(wanted, name+"_CC.fastq", "fastq")  # to be deleted
 
     # first out put fasta

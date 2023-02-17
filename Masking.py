@@ -95,18 +95,13 @@ for fil in Comb_files:
 
 
 combs_uniq = []
+pattern="AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA"
 for J in combs_uniq_mask:
-    with open(J, "r") as inp:
-        pattern="AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA"
-        data=''
-        for line in inp:
-            match = re.search(pattern0, pattern1)
-            if match is not None:
-                line=line[match.end():]
-            data+=line
-        #data = inp.read().replace("AAAACCCTTAGCAAATAAGCTTAGAATATAATAAAGCGCGAATTAAAA", "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
-
-    output = J[:-6]+"_Masked.fasta"
-    with open(output, "w") as out:
-        out.write(data)
-    combs_uniq.append(output)
+  file_parser= SeqIO.parse(J, J.split(".")[-1])
+  seqs=[]
+  for seq in file_parser:
+    seq.seq=seq.seq.split(pattern)[-1]
+    seqs.append(seq)
+  output = J[:-6]+"_Masked.fasta"
+  SeqIO.write(seqs, output, "fasta")
+  combs_uniq.append(output)
